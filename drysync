@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+EXCLUDE_FLAGS=()
+DRY_RUN="--dry-run"
+
+# Check if --DOIT is the last argument
+if [[ "${@: -1}" == "--DOIT" ]]; then
+    DRY_RUN=""
+    set -- "${@:1:$(($# - 1))}"
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -x)
+            EXCLUDE_FLAGS+=(--exclude='.venv' --exclude='.env' --exclude='.npm')
+            shift
+            ;;
+        --DOIT)
+            echo "Error: --DOIT must be the last argument" >&2
+            exit 1
+            ;;
+        -*)
+            echo "Usage: drysync [-x] TARGET_DIR [RSYNC_ARGS...] [--DOIT]" >&2
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ $# -lt 1 ]]; then
+    echo "Usage: drysync [-x] TARGET_DIR [RSYNC_ARGS...] [--DOIT]" >&2
+    exit 1
+fi
+
+TARGET_DIR="$1"
+shift
+
+FULL_CMD="rsync -avr . \"$TARGET_DIR\" ${EXCLUDE_FLAGS[@]:+${EXCLUDE_FLAGS[@]}} --stats -h --size-only${DRY_RUN:+ $DRY_RUN}${@:+ $@}"
+rsync -avr . "$TARGET_DIR" "${EXCLUDE_FLAGS[@]}" --stats -h --size-only $DRY_RUN "$@"
+
+echo "$FULL_CMD ($(date))" > drysync_last.txt
